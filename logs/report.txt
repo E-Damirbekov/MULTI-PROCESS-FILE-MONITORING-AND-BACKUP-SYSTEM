@@ -1,0 +1,3 @@
+[CHILD LOG]: Файл test1.txt сохранен
+[CHILD LOG]: Файл test2.txt сохранен
+[CHILD LOG]: Файл test3.txt сохранен
