@@ -1,11 +1,3 @@
-
-[LOG]: Success: test1.txt backed up.
-[LOG]: Success: test2.txt backed up.
-[LOG]: Success: test3.txt backed up.
-[LOG]: Success: test1.txt copied.
-[LOG]: Success: test2.txt copied.
-[LOG]: Success: test3.txt copied.
-[LOG]: Success: test1.txt copied.
-[LOG]: Success: test2.txt copied.
-[LOG]: Success: test3.txt copied.
-[LOG]: Warning: No files found.
+[2026-04-14 03:39:00] SUCCESS: File copied from path: src/test1.txt
+[2026-04-14 03:39:00] SUCCESS: File copied from path: src/test2.txt
+[2026-04-14 03:39:00] SUCCESS: File copied from path: src/test3.txt

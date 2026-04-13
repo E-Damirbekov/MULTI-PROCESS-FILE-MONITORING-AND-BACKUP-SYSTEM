@@ -9,26 +9,41 @@
 #include "scanner.h"
 #include "backup.h"
 
-/* Signal handler for clean exit on SIGINT */
+/* Signal handler for clean exit on SIGINT (Ctrl+C) */
 void handle_sigint(int sig) {
-    printf("\n[SIGINT] caught. Exiting...\n");
+    printf("\n[SIGINT] Termination signal %d caught. Exiting...\n", sig);
     exit(0);
 }
 
-/* Alert function for urgent situations */
-void create_urgent_alert(const char* type, const char* message) {
+/* Helper function to get a formatted timestamp for logging */
+void get_timestamp(char *buffer) {
+    time_t now = time(NULL);
+    struct tm *t = localtime(&now);
+    strftime(buffer, 32, "%Y-%m-%d %H:%M:%S", t);
+}
+
+/* Creates specific alert files in the alerts/ directory for summaries or errors */
+void create_system_alert(const char* type, const char* message, const char* folder, int count) {
     char filename[256];
     sprintf(filename, "alerts/%s.alert", type);
     FILE *f = fopen(filename, "w");
     if (f) {
-        fprintf(f, "--- URGENT ALERT ---\n");
-        fprintf(f, "Status: %s\n", message);
-        fprintf(f, "--------------------\n");
+        char ts[32];
+        get_timestamp(ts);
+        fprintf(f, "--- SYSTEM ALERT: %s ---\n", type);
+        fprintf(f, "Timestamp: %s\n", ts);
+        fprintf(f, "Message: %s\n", message);
+        if (folder != NULL) {
+            fprintf(f, "Processed Folder: %s\n", folder);
+            fprintf(f, "Total Files: %d\n", count);
+        }
+        fprintf(f, "--------------------------\n");
         fclose(f);
     }
 }
 
 int main(int argc, char *argv[]) {
+    // Register signal handler for graceful shutdown
     signal(SIGINT, handle_sigint);
 
     if (argc < 2) {
@@ -37,62 +52,78 @@ int main(int argc, char *argv[]) {
     }
 
     int pipefd[2];
-    if (pipe(pipefd) == -1) {
+    if (pipe(pipefd) == -1) { // Initialize anonymous pipe for IPC [cite: 103]
         perror("pipe");
         return 1;
     }
 
-    pid_t pid = fork();
+    pid_t pid = fork(); // Forking for separate Scanner (parent) and Logger (child) processes [cite: 103]
 
     if (pid < 0) {
         perror("fork");
         return 1;
     }
 
-    if (pid == 0) { // CHILD PROCESS: Logger
-        close(pipefd[1]); 
+    if (pid == 0) { // CHILD PROCESS: Dedicated Logger [cite: 10, 12]
+        close(pipefd[1]); // Close unused write end
         FILE *report = fopen("logs/report.txt", "a");
-        char buffer[512];
+        char buffer[2048]; // Buffer matching the expanded log message size
 
-        /* Simple logging without paths or timestamps */
+        /* Continuously listen to the pipe for logs from the parent process */
         while (read(pipefd[0], buffer, sizeof(buffer)) > 0) {
-            fprintf(report, "[LOG]: %s\n", buffer);
+            char ts[32];
+            get_timestamp(ts);
+            fprintf(report, "[%s] %s\n", ts, buffer); // Log with time and date [cite: 88, 117]
             fflush(report);
         }
 
         fclose(report);
         close(pipefd[0]);
         exit(0);
-    } else { // PARENT PROCESS: Scanner & Backup
-        close(pipefd[0]); 
+    } else { // PARENT PROCESS: Scanner & Backup Controller [cite: 11-12]
+        close(pipefd[0]); // Close unused read end
 
         int count = 0;
         int success_count = 0;
-        FileInfo *files = scan_directory(argv[1], &count);
+        FileInfo *files = scan_directory(argv[1], &count); // Dynamic memory allocation inside scanner [cite: 20, 109]
 
         if (count == 0) {
-            /* Alert for empty source folder */
-            create_urgent_alert("EMPTY", "No files found in source directory.");
-            write(pipefd[1], "Warning: No files found.", 25);
+            /* Handle cases where the directory is empty or inaccessible */
+            create_system_alert("EMPTY_SOURCE", "No .txt files found to process.", argv[1], 0);
+            char empty_msg[512];
+            sprintf(empty_msg, "WARNING: No files found in '%s'.", argv[1]);
+            write(pipefd[1], empty_msg, strlen(empty_msg) + 1);
         } else if (files != NULL) {
+            /* Iterate through found files and perform backups [cite: 115-116] */
             for (int i = 0; i < count; i++) {
-                char log_msg[1024];
-                if (perform_backup(argv[1], files[i].name) == 0) {
-                    sprintf(log_msg, "Success: %s copied.", files[i].name);
+                char log_msg[2048]; // Increased size to prevent overflow warnings
+                char full_path[1024];
+                
+                /* Construct full relative path for logging accuracy */
+                snprintf(full_path, sizeof(full_path), "%s/%s", argv[1], files[i].name);
+
+                if (perform_backup(argv[1], files[i].name) == 0) { // Perform file copy [cite: 116]
+                    snprintf(log_msg, sizeof(log_msg), "SUCCESS: File copied from path: %s", full_path);
                     success_count++;
                 } else {
-                    /* Alert for failed backup */
-                    sprintf(log_msg, "Critical: %s failed.", files[i].name);
-                    create_urgent_alert("FAILURE", log_msg);
+                    /* Log critical failure if a file cannot be backed up */
+                    snprintf(log_msg, sizeof(log_msg), "CRITICAL: Failed to copy from path: %s", full_path);
+                    create_system_alert("BACKUP_FAILURE", log_msg, argv[1], count);
                 }
+                
+                /* Send path-aware log entry to child process via Pipe [cite: 116-117] */
                 write(pipefd[1], log_msg, strlen(log_msg) + 1); 
             }
-            free(files);
+            
+            /* Finalize session with a summary alert in the alerts/ directory */
+            create_system_alert("FINAL_SUMMARY", "Backup cycle completed successfully.", argv[1], success_count);
+            
+            free(files); // Free allocated structures to prevent memory leaks 
         }
 
-        close(pipefd[1]); 
-        wait(NULL); 
-        printf("Done. Check logs/ and alerts/.\n");
+        close(pipefd[1]); // Close write end to signal child logger to terminate
+        wait(NULL); // Reap child process to clean up system resources [cite: 124]
+        printf("Process finished. Check logs/report.txt for details and alerts/ for summary.\n");
     }
 
     return 0;
