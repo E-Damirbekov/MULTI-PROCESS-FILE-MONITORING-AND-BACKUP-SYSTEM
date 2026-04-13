@@ -1,3 +1,4 @@
-[CHILD LOG]: Файл test1.txt сохранен
-[CHILD LOG]: Файл test2.txt сохранен
-[CHILD LOG]: Файл test3.txt сохранен
+
+[LOG]: Success: test1.txt backed up.
+[LOG]: Success: test2.txt backed up.
+[LOG]: Success: test3.txt backed up.

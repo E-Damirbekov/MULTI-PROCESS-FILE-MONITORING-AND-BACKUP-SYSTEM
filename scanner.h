@@ -1,11 +1,13 @@
 #ifndef SCANNER_H
 #define SCANNER_H
 
+/* Structure to hold metadata for discovered files */
 typedef struct {
     char name[256];
     long size;
-} FileInfo; // [cite: 14, 32]
+} FileInfo;
 
-FileInfo* scan_directory(const char* path, int* count); // [cite: 33]
+/* Function to traverse directory and find .txt files */
+FileInfo* scan_directory(const char* path, int* count);
 
 #endif
