@@ -2,3 +2,10 @@
 [LOG]: Success: test1.txt backed up.
 [LOG]: Success: test2.txt backed up.
 [LOG]: Success: test3.txt backed up.
+[LOG]: Success: test1.txt copied.
+[LOG]: Success: test2.txt copied.
+[LOG]: Success: test3.txt copied.
+[LOG]: Success: test1.txt copied.
+[LOG]: Success: test2.txt copied.
+[LOG]: Success: test3.txt copied.
+[LOG]: Warning: No files found.
