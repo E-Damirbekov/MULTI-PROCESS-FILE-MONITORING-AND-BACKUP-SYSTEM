@@ -10,5 +10,10 @@ monitor: $(OBJ)
 %.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
+auto: all
+	@echo "Running automation script..."
+	@chmod +x scripts/run_system.sh
+	@./scripts/run_system.sh
+
 clean:
 	rm -f *.o monitor logs/report.txt backup/*.txt
